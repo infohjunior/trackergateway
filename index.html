@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LatLon - Mapa Interativo</title>
+
+    <!-- Leaflet CSS (versão fixa = mais estável) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background: #f0f0f0;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        #app {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #map {
+            flex: 1 1 auto;
+            height: 100%;
+        }
+
+        /* ===== Painel lateral com os dados do log ===== */
+        #panel {
+            width: 360px;
+            flex: 0 0 360px;
+            height: 100%;
+            background: #ffffff;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 6px rgba(0,0,0,0.08);
+            z-index: 500;
+            transition: margin-left 0.2s ease;
+        }
+
+        #app.panel-collapsed #panel {
+            margin-left: -360px;
+        }
+
+        #panel-header {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        #panel-header h1 {
+            font-size: 15px;
+            margin: 0;
+            color: #6a1b9a;
+        }
+
+        #panel-header .actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        #panel-header button {
+            font-size: 12px;
+            padding: 4px 8px;
+            border: 1px solid #6a1b9a;
+            background: #fff;
+            color: #6a1b9a;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        #panel-header button:hover {
+            background: #6a1b9a;
+            color: #fff;
+        }
+
+        #pointsCount {
+            font-size: 12px;
+            color: #666;
+            padding: 4px 12px 8px;
+        }
+
+        #pointsList {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            overflow-y: auto;
+            flex: 1 1 auto;
+        }
+
+        #pointsList li {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+
+        #pointsList li:hover {
+            background: #f7f0fb;
+        }
+
+        #pointsList li.selected {
+            background: #ede1f5;
+            border-left: 3px solid #6a1b9a;
+        }
+
+        #pointsList li.speeding {
+            border-left: 3px solid #ff8c00;
+        }
+
+        #pointsList li.speeding.selected {
+            background: #fff1e0;
+            border-left: 3px solid #ff8c00;
+        }
+
+        .point-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #444;
+            flex-wrap: wrap;
+        }
+
+        .point-number {
+            background: #6a1b9a;
+            color: #fff;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+            flex: 0 0 auto;
+        }
+
+        .point-type {
+            font-weight: bold;
+            color: #6a1b9a;
+        }
+
+        .point-datetime {
+            margin-left: auto;
+            color: #777;
+        }
+
+        .point-coords {
+            font-family: "Courier New", monospace;
+            font-size: 13px;
+            margin-top: 4px;
+        }
+
+        .point-speed {
+            font-size: 12px;
+            margin-top: 2px;
+            color: #555;
+        }
+
+        .point-speed.speed-high {
+            color: #ff8c00;
+            font-weight: bold;
+        }
+
+        .toggle-raw-btn {
+            margin-top: 4px;
+            font-size: 11px;
+            background: none;
+            border: none;
+            color: #6a1b9a;
+            cursor: pointer;
+            padding: 0;
+            text-decoration: underline;
+        }
+
+        .point-raw {
+            margin: 6px 0 0;
+            padding: 6px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            font-size: 11px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .label {
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            color: #6a1b9a;
+            text-align: center;
+            width: 28px;
+            height: 28px;
+            font-size: 13px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 2px solid #6a1b9a;
+            box-shadow: 0 0 4px rgba(0,0,0,0.3);
+            user-select: none;
+        }
+
+        @media (max-width: 700px) {
+            #panel {
+                width: 85vw;
+                flex: 0 0 85vw;
+                position: absolute;
+                left: 0;
+                top: 0;
+            }
+
+            #app.panel-collapsed #panel {
+                margin-left: -85vw;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div id="app">
+    <aside id="panel">
+        <div id="panel-header">
+            <h1>Dados</h1>
+            <div class="actions">
+                <button type="button" id="reloadBtn" title="Recarregar log.txt">↻ Recarregar</button>
+                <button type="button" id="togglePanelBtn" title="Mostrar/ocultar painel">⇔</button>
+            </div>
+        </div>
+        <div id="pointsCount">0 ponto(s)</div>
+        <ul id="pointsList"></ul>
+    </aside>
+    <div id="map"></div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script src="./script.js"></script>
+
+</body>
+</html>
