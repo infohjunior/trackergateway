@@ -20,10 +20,10 @@ const SPEED_LIMIT = 110;
 let markers = [];
 let selectedIndex = -1;
 
-// ===== Carregamento e parsing do log =====
-// Formato esperado por linha (tudo antes do tipo da mensagem é ignorado):
-// [prefixo do gateway] TIPO;ID;HEX;NUM;FIRMWARE;X;YYYYMMDD;HH:MM:SS;LAT;LON;VEL;...
-// Ex.: 23/09/2026 16:20:43 - [ASCII C000] STT;2180000019;FFF83F;218;1.1.26;1;20260923;19:20:19;-22.847620;-47.085808;0.00;...
+// ===== Carregamento e parsing do log.txt =====
+// Formato esperado por linha (campos separados por ';'):
+// TIPO;ID;HEX;NUM;FIRMWARE;X;YYYYMMDD;HH:MM:SS;LAT;LON;VEL;...
+// Ex.: STT;2180284765;FFF83F;218;1.1.25;1;20260902;21:52:45;-15.884498;-49.789363;98.80;...
 // Latitude = campo 9 (índice 8) | Longitude = campo 10 (índice 9), em base 1.
 // Velocidade (km/h) = índice 10 (campo 11, em base 1).
 async function loadLog(url) {
@@ -41,19 +41,8 @@ async function loadLog(url) {
         .filter(entry => entry !== null);
 }
 
-// Tipos de mensagem Suntech reconhecidos (início real da mensagem)
-const MSG_TYPES = 'STT|ALT|RES|ACL|ALV|CMD|UEX|TRV|PRG|ASTT|AALT|ARTV|AUEX';
-
-// Captura a mensagem a partir do primeiro tipo encontrado, ignorando
-// tudo o que vier antes (data/hora do gateway, "[ASCII C000]", etc.)
-const MSG_REGEX = new RegExp(`(?:${MSG_TYPES});.*$`);
-
 function parseLogLine(line) {
-    const match = line.match(MSG_REGEX);
-    if (!match) return null; // linha sem mensagem Suntech: ignora
-
-    const message = match[0];
-    const fields = message.split(';');
+    const fields = line.split(';');
 
     // Precisa ter ao menos até o campo de longitude (índice 9)
     if (fields.length < 10) return null;
@@ -68,7 +57,7 @@ function parseLogLine(line) {
     const speed = isNaN(speedRaw) ? null : speedRaw;
 
     return {
-        raw: message,                      // só a mensagem, sem o prefixo
+        raw: line,
         type: fields[0] || '',
         id: fields[1] || '',
         dateRaw: fields[6] || '',
@@ -303,7 +292,7 @@ async function plotPoints() {
     renderPanel(uniquePoints);
 }
 
-// ===== Botão para recarregar o log sem dar F5 na página =====
+// ===== Botão para recarregar o log.txt sem dar F5 na página =====
 document.getElementById('reloadBtn')?.addEventListener('click', plotPoints);
 
 // ===== Colapsar/expandir o painel lateral (útil em telas menores) =====
